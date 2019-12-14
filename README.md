@@ -10,6 +10,7 @@ The main modifications include:
 * Introduced `SentenceEncoder` which is an experimental generalisation of bert-as-service like encoding services using the transformers backend
 ** allows to extract various types of embeddings from a single execution of a batch of sequences
 * rolling cosine similarity metrics during training phase
+* besides training on semcor, we generate sentences based on WordNet, this allows us to learn more senses than the 16% of senses which are covered by semcor (most of which only occur once)
 
 The original repository includes the code to replicate the experiments in the ["Language Modelling Makes Sense (ACL 2019)"](https://arxiv.org/abs/1906.10007) paper.
 

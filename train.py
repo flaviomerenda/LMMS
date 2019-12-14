@@ -9,6 +9,7 @@ import numpy as np
 
 from sentence_encoder import TransformerSentenceEncoder, min_maxlen_encoder, infer_arch_from_name
 import mwtok
+import wnetsentgen
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -143,7 +144,7 @@ def insert_in_sized_batch(sent_entry, sized_batches, sentence_encoder):
     return None, None
 
 
-def train_optimized(train_path, eval_path, sentence_encoder, max_instances=float('inf')):
+def train_optimized(sentence_entry_gen, sentence_encoder, max_instances=float('inf')):
     """Optimized version of `train`, only works for transformers backend
     The optimization consists in creating batches of similar lengths to avoid having to 
     extract senses for a short sentence using `seq-len` 512.
@@ -160,7 +161,7 @@ def train_optimized(train_path, eval_path, sentence_encoder, max_instances=float
         global_min_len > maxlen or
         global_max_len < minlen)}
     sense_vecs, glob_cnt, t0 = {}, 0, time()
-    for sent_idx, entry in enumerate(get_sentence_entry_generator(train_path, eval_path)):
+    for sent_idx, entry in enumerate(sentence_entry_gen):
         seg_spec, batch = insert_in_sized_batch(entry, sized_batches, sentence_encoder)
         if batch is None:
             continue # skipped entry because of length
@@ -294,6 +295,14 @@ def dataset_paths(dataset_name):
         keys_path = None
     return train_path, keys_path
 
+
+def compose_entry_gens(entry_gen_a, entry_gen_b):
+    for entry in entry_gen_a:
+        yield entry
+    for entry in entry_gen_b:
+        yield entry
+
+
 def run_train(args):
     (dir, fname) = os.path.split(args.out_path)
     if not os.path.isdir(dir):
@@ -301,7 +310,7 @@ def run_train(args):
 
     train_path, keys_path = dataset_paths(args.dataset)
     assert args.out_path[-4:] in ['.txt', '.tsv'], "out_path must end in .txt or .tsv " + args.out_path 
-        
+
     sentence_encoder =  build_encoder(args)
     if args.backend == 'bert-as-service':
         sense_vecs = train(train_path, keys_path,
@@ -309,9 +318,22 @@ def run_train(args):
                        batch_size=args.batch_size,
                        max_instances=args.max_instances)
     elif args.backend == 'transformers':
-        sense_vecs = train_optimized(train_path, keys_path, 
-                                     sentence_encoder, 
-                                     max_instances=args.max_instances)
+        corpus_entry_gen = get_sentence_entry_generator(train_path, keys_path)
+        wnet_entry_gen = wnetsentgen.gen_wnet_sents(
+            wnetsentgen.syn_relations, wnetsentgen.lem_relations)
+        train_gen = corpus_entry_gen
+        if args.wnet_generated_corpus == "only-wnet":
+            logging.info('Training only with corpus generated from wordnet')
+            train_gen = wnet_entry_gen
+        elif args.wnet_generated_corpus == 'both':
+            logging.info('Training with both corpus dataset and wordnet')
+            train_gen = compose_entry_gens(corpus_entry_gen, wnet_entry_gen)
+        else:
+            logging.info('Training only with corpus dataset')
+        sense_vecs = train_optimized(
+            train_gen,
+            sentence_encoder,
+            max_instances=args.max_instances)
 
     sep = ' '
     if args.out_path.endswith('.tsv'):
@@ -329,6 +351,9 @@ if __name__ == '__main__':
                         default='external/wsd_eval/WSD_Evaluation_Framework/')
     parser.add_argument('-dataset', default='semcor', help='Name of dataset', required=False,
                         choices=['semcor', 'semcor_omsti'])
+    parser.add_argument('-wnet_generated_corpus', default='no',
+                        help='Whether to train using corpus generated from wordnet',
+                        choices=['no', 'only-wnet', 'both'])
     parser.add_argument('-batch_size', type=int, default=32, help='Batch size (BERT)', required=False)
     parser.add_argument('-min_seq_len', type=int, default=3, help='Minimum sequence length (BERT)', required=False)
     parser.add_argument('-max_seq_len', type=int, default=512, help='Maximum sequence length (BERT)', required=False)
