@@ -38,7 +38,7 @@ def wn_lemmatize(w, postag=None):
         return wn_lemmatizer.lemmatize(w)
 
 
-def load_wic(wic_path='external/wic-tsv/WiC_TSV_Data', folder='Training', setname='train'):
+def load_wic(wic_path='external/wic-tsv', folder='Training', setname='train'):
     data_entries = []
     examples_path = '%s/%s/%s_examples.txt' % (wic_path, folder, setname)
     definitions_path = '%s/%s/%s_definitions.txt' % (wic_path, folder, setname)
@@ -176,7 +176,7 @@ def run_train(args, postag=None):
         labels.append(gold)
         count += 1
         logging.info('target word: ' + ex_curr_word + ' | ' + 'index: ' + str(count))
-    logging.info('out of vocab: ', out_of_vocab)
+    print('out of vocab: ', out_of_vocab)
 
     logging.info('Training Logistic Regression ...')
     clf = LogisticRegression(random_state=42)
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     parser.add_argument('-pytorch_model', type=str, default='bert-large-cased',
                         help='Pre-trained pytorch transformer name or path',
                         required=False)
-    parser.add_argument('-wic_path', help='Path to wic data', default='external/wic-tsv/WiC_TSV_Data', required=False)
+    parser.add_argument('-wic_path', help='Path to wic data', default='external/wic-tsv', required=False)
 
     args = parser.parse_args()
 
